@@ -58,6 +58,9 @@ By using the special Android Emulator IP `10.0.2.2`, which maps to the host mach
    ```bash
    git clone https://github.com/melkopisi/android-emulator-proxy.git
    cd android-emulator-proxy
+   xattr -d com.apple.quarantine install_emulator_proxy.sh
+   chmod +x install_emulator_proxy.sh
+   ./install_emulator_proxy.sh
 
 ---
 
