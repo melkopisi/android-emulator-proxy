@@ -56,7 +56,7 @@ By using the special Android Emulator IP `10.0.2.2`, which maps to the host mach
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/yourusername/android-emulator-proxy.git
+   git clone https://github.com/melkopisi/android-emulator-proxy.git
    cd android-emulator-proxy
 
 ---
