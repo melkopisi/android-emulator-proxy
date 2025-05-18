@@ -42,7 +42,7 @@ else
 fi
 
 # ✅ Ensure dependencies
-for cmd in privoxy microsocks adb; do
+for cmd in privoxy microsocks android-platform-tools; do
   echo "${yellow}🔍 Checking if $cmd is installed...${reset}"
   if ! command -v $cmd &>/dev/null; then
     echo "${yellow}📦 Installing $cmd using Homebrew...${reset}"
