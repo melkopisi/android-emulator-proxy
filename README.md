@@ -57,10 +57,23 @@ By using the special Android Emulator IP `10.0.2.2`, which maps to the host mach
 1. **Clone the repository**:
    ```bash
    git clone https://github.com/melkopisi/android-emulator-proxy.git
+   ```
+
+   ```bash
    cd android-emulator-proxy
-   xattr -d com.apple.quarantine install_emulator_proxy.sh
-   chmod +x install_emulator_proxy.sh
-   ./install_emulator_proxy.sh
+      ```
+
+    ```bash
+   xattr -d com.apple.quarantine $PWD/install_emulator_proxy.sh #if fails ignore it
+    ```
+
+   ```bash
+   sudo chmod +x $PWD/install_emulator_proxy.sh
+   ```
+
+   ```bash
+    ./install_emulator_proxy.sh
+   ```
 
 ---
 
