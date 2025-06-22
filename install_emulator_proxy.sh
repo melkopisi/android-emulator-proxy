@@ -64,68 +64,63 @@ SOCKS_PORT=$SOCKS_PORT
 PRIVOXY_PORT=$PRIVOXY_PORT
 PRIVOXY_CONFIG="$PRIVOXY_CONFIG"
 LOG_DIR="$LOG_DIR"
-LOG_FILE="\$LOG_DIR/proxy_\\\$(date +%Y%m%d_%H%M%S).log"
-mkdir -p "\$LOG_DIR"
+LOG_FILE="$LOG_DIR/proxy_\$(date +%Y%m%d_%H%M%S).log"
+mkdir -p "$LOG_DIR"
 
-echo "\$(tput setaf 3)🧹 Killing existing proxies (microsocks, privoxy)...\$(tput sgr0)"
+echo "$(tput setaf 3)🧹 Killing existing proxies (microsocks, privoxy)...$(tput sgr0)"
 pkill -f microsocks &>/dev/null
 pkill -f privoxy &>/dev/null
 
-echo "\$(tput setaf 2)✅ Starting microsocks on 127.0.0.1:\$SOCKS_PORT...\$(tput sgr0)"
-microsocks -p \$SOCKS_PORT > >(tee -a "\$LOG_FILE") 2>&1 &
-MICROSOCKS_PID=\$!
+echo "$(tput setaf 2)✅ Starting microsocks on 127.0.0.1:$SOCKS_PORT...$(tput sgr0)"
+microsocks -p $SOCKS_PORT > >(tee -a "$LOG_FILE") 2>&1 &
+MICROSOCKS_PID=$!
 
-cat <<EOC > "\$PRIVOXY_CONFIG"
-listen-address  127.0.0.1:\$PRIVOXY_PORT
+cat <<EOC > "$PRIVOXY_CONFIG"
+listen-address  127.0.0.1:$PRIVOXY_PORT
 toggle 1
 enable-remote-toggle 0
 enable-remote-http-toggle 0
 enable-edit-actions 0
-socket-timeout 300
-forward-socks5t / 127.0.0.1:\$SOCKS_PORT .
+forward-socks5t / 127.0.0.1:$SOCKS_PORT .
 EOC
 
-echo "\$(tput setaf 2)✅ Starting privoxy on 127.0.0.1:\$PRIVOXY_PORT...\$(tput sgr0)"
-privoxy --no-daemon "\$PRIVOXY_CONFIG" > >(tee -a "\$LOG_FILE") 2>&1 &
-PRIVOXY_PID=\$!
+echo "$(tput setaf 2)✅ Starting privoxy on 127.0.0.1:$PRIVOXY_PORT...$(tput sgr0)"
+privoxy --no-daemon "$PRIVOXY_CONFIG" > >(tee -a "$LOG_FILE") 2>&1 &
+PRIVOXY_PID=$!
 
 # AVD selection
-echo "\n\$(tput setaf 3)📱 Available AVDs:\$(tput sgr0)"
-AVDS=(\$(emulator -list-avds))
-if [[ \${#AVDS[@]} -eq 0 ]]; then
+echo "\n$(tput setaf 3)📱 Available AVDs:$(tput sgr0)"
+AVDS=($(emulator -list-avds))
+if [[ ${#AVDS[@]} -eq 0 ]]; then
   echo "❌ No AVDs found. Skipping launch."
 else
-  for i in "\${!AVDS[@]}"; do
-    echo "  [\$((i+1))] \${AVDS[\$i]}"
+  for i in "${!AVDS[@]}"; do
+    echo "  [$((i+1))] ${AVDS[$i]}"
   done
   echo "  [0] None"
-  read -p "👉 Select an emulator to launch [0-\${#AVDS[@]}]: " CHOICE
-  if [[ "\$CHOICE" =~ ^[0-9]+\$ ]] && (( CHOICE > 0 && CHOICE <= \${#AVDS[@]} )); then
-    EMU="\${AVDS[\$((CHOICE-1))]}"
-    echo "🚀 Launching AVD: \$EMU"
-    nohup emulator -avd "\$EMU" > /dev/null 2>&1 &
+  read -p "👉 Select an emulator to launch [0-${#AVDS[@]}]: " CHOICE
+  if [[ "$CHOICE" =~ ^[0-9]+$ ]] && (( CHOICE > 0 && CHOICE <= ${#AVDS[@]} )); then
+    EMU="${AVDS[$((CHOICE-1))]}"
+    echo "🚀 Launching AVD: $EMU"
+    nohup emulator -avd "$EMU" > /dev/null 2>&1 &
   fi
 fi
 
 while [ "`adb shell getprop sys.boot_completed | tr -d '\r' `" != "1" ] ; do sleep 1; done
-
 adb wait-for-device
-adb shell settings put global http_proxy 10.0.2.2:\$PRIVOXY_PORT
+adb shell settings put global http_proxy 10.0.2.2:$PRIVOXY_PORT
 
 echo ""
-echo "\$(tput setaf 2)🎉 Proxy is ready!\$(tput sgr0)"
-echo "➡️ \$(tput setaf 3)Set Android emulator Wi-Fi proxy to:\$(tput sgr0)"
+echo "$(tput setaf 2)🎉 Proxy is ready!$(tput sgr0)"
+echo "➡️ $(tput setaf 3)Set Android emulator Wi-Fi proxy to:$(tput sgr0)"
 echo "    Host: 10.0.2.2"
-echo "    Port: \$PRIVOXY_PORT"
-echo "📄 Logging to: \$LOG_FILE"
+echo "    Port: $PRIVOXY_PORT"
+echo "📄 Logging to: $LOG_FILE"
 echo "🛑 Press Ctrl+C to stop everything."
 
-trap '{
-  echo "$(tput setaf 1)🛑 Stopping proxies...$(tput sgr0)"
-  kill "$MICROSOCKS_PID" "$PRIVOXY_PID" 2>/dev/null
-  adb shell settings put global http_proxy :0 2>/dev/null
-  exit 0
-}' SIGINT
+
+
+trap "echo '🛑 Stopping proxies...'; kill $MICROSOCKS_PID $PRIVOXY_PID; exit 0" SIGINT
 
 wait
 EOL
