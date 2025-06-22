@@ -4,6 +4,8 @@ INSTALLER_SCRIPT="$HOME/.android-proxy"
 ALIAS_NAME="androidproxy"
 ALIAS_LINE="alias $ALIAS_NAME=\"bash $INSTALLER_SCRIPT\""
 EMULATOR_PATH="$HOME/Library/Android/sdk/emulator"
+_PATH="$HOME/Library/Android/sdk/emulator"
+
 
 # Ports and paths
 SOCKS_PORT=1080
