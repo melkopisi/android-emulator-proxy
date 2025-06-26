@@ -6,7 +6,6 @@ ALIAS_LINE="alias $ALIAS_NAME=\"bash $INSTALLER_SCRIPT\""
 EMULATOR_PATH="$HOME/Library/Android/sdk/emulator"
 _PATH="$HOME/Library/Android/sdk/emulator"
 
-
 # Ports and paths
 SOCKS_PORT=1080
 PRIVOXY_PORT=8118
@@ -26,7 +25,6 @@ if ! command -v emulator &>/dev/null; then
   echo "${yellow}🔧 'emulator' not found in PATH. Attempting to add from $EMULATOR_PATH...${reset}"
   if [ -d "$EMULATOR_PATH" ]; then
     if ! grep -q "$EMULATOR_PATH" "$HOME/.zprofile" 2>/dev/null; then
-      # Add newline if file is not empty and doesn't end with one
       if [ -s "$HOME/.zprofile" ] && [ -n "$(tail -c1 "$HOME/.zprofile")" ]; then
         echo >> "$HOME/.zprofile"
       fi
@@ -57,14 +55,15 @@ done
 
 # ✅ Create the proxy launcher script
 echo "${yellow}⚙️ Creating launcher script at $INSTALLER_SCRIPT...${reset}"
-cat <<EOL > "$INSTALLER_SCRIPT"
+cat <<'EOL' > "$INSTALLER_SCRIPT"
 #!/bin/bash
 
-SOCKS_PORT=$SOCKS_PORT
-PRIVOXY_PORT=$PRIVOXY_PORT
-PRIVOXY_CONFIG="$PRIVOXY_CONFIG"
-LOG_DIR="$LOG_DIR"
-LOG_FILE="$LOG_DIR/proxy_\$(date +%Y%m%d_%H%M%S).log"
+
+SOCKS_PORT=1080
+PRIVOXY_PORT=8118
+PRIVOXY_CONFIG="/tmp/privoxy-android.conf"
+LOG_DIR="$HOME/.android-proxy-logs"
+LOG_FILE="$LOG_DIR/proxy_$(date +%Y%m%d_%H%M%S).log"
 mkdir -p "$LOG_DIR"
 
 echo "$(tput setaf 3)🧹 Killing existing proxies (microsocks, privoxy)...$(tput sgr0)"
@@ -89,7 +88,8 @@ privoxy --no-daemon "$PRIVOXY_CONFIG" > >(tee -a "$LOG_FILE") 2>&1 &
 PRIVOXY_PID=$!
 
 # AVD selection
-echo "\n$(tput setaf 3)📱 Available AVDs:$(tput sgr0)"
+echo ""
+echo "$(tput setaf 3)📱 Available AVDs:$(tput sgr0)"
 AVDS=($(emulator -list-avds))
 if [[ ${#AVDS[@]} -eq 0 ]]; then
   echo "❌ No AVDs found. Skipping launch."
@@ -106,7 +106,7 @@ else
   fi
 fi
 
-while [ "`adb shell getprop sys.boot_completed | tr -d '\r' `" != "1" ] ; do sleep 1; done
+while [ "$(adb shell getprop sys.boot_completed | tr -d '\r')" != "1" ] ; do sleep 1; done
 adb wait-for-device
 adb shell settings put global http_proxy 10.0.2.2:$PRIVOXY_PORT
 
@@ -117,8 +117,6 @@ echo "    Host: 10.0.2.2"
 echo "    Port: $PRIVOXY_PORT"
 echo "📄 Logging to: $LOG_FILE"
 echo "🛑 Press Ctrl+C to stop everything."
-
-
 
 trap "echo '🛑 Stopping proxies...'; kill $MICROSOCKS_PID $PRIVOXY_PID; exit 0" SIGINT
 
@@ -131,7 +129,6 @@ echo "${green}✅ Launcher script created${reset}"
 # ✅ Add alias if not already present
 echo "${yellow}🔍 Checking for alias in ~/.zprofile...${reset}"
 if ! grep -Fxq "$ALIAS_LINE" "$HOME/.zprofile" 2>/dev/null; then
-  # Add newline if file is not empty and doesn't end with one
   if [ -s "$HOME/.zprofile" ] && [ -n "$(tail -c1 "$HOME/.zprofile")" ]; then
     echo >> "$HOME/.zprofile"
   fi
