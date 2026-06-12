@@ -1,23 +1,16 @@
 #!/bin/bash
 
-INSTALLER_SCRIPT="$HOME/.android-proxy"
-ALIAS_NAME="androidproxy"
-ALIAS_LINE="alias $ALIAS_NAME=\"bash $INSTALLER_SCRIPT\""
-EMULATOR_PATH="$HOME/Library/Android/sdk/emulator"
-_PATH="$HOME/Library/Android/sdk/emulator"
-
-# Ports and paths
-SOCKS_PORT=1080
-PRIVOXY_PORT=8118
-PRIVOXY_CONFIG="/tmp/privoxy-android.conf"
-LOG_DIR="$HOME/.android-proxy-logs"
-mkdir -p "$LOG_DIR"
-
 # Colors
 green=$(tput setaf 2)
 red=$(tput setaf 1)
 yellow=$(tput setaf 3)
 reset=$(tput sgr0)
+
+# Paths
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LAUNCHER_SCRIPT="$SCRIPT_DIR/androidproxy.sh"
+SYMLINK_PATH="/usr/local/bin/androidproxy"
+EMULATOR_PATH="$HOME/Library/Android/sdk/emulator"
 
 # ✅ Ensure emulator is in PATH
 echo "${yellow}🔍 Checking if 'emulator' is in PATH...${reset}"
@@ -53,94 +46,38 @@ for cmd in privoxy microsocks android-platform-tools; do
   fi
 done
 
-# ✅ Create the proxy launcher script
-echo "${yellow}⚙️ Creating launcher script at $INSTALLER_SCRIPT...${reset}"
-cat <<'EOL' > "$INSTALLER_SCRIPT"
-#!/bin/bash
-
-
-SOCKS_PORT=1080
-PRIVOXY_PORT=8118
-PRIVOXY_CONFIG="/tmp/privoxy-android.conf"
-LOG_DIR="$HOME/.android-proxy-logs"
-LOG_FILE="$LOG_DIR/proxy_$(date +%Y%m%d_%H%M%S).log"
-mkdir -p "$LOG_DIR"
-
-echo "$(tput setaf 3)🧹 Killing existing proxies (microsocks, privoxy)...$(tput sgr0)"
-pkill -f microsocks &>/dev/null
-pkill -f privoxy &>/dev/null
-
-echo "$(tput setaf 2)✅ Starting microsocks on 127.0.0.1:$SOCKS_PORT...$(tput sgr0)"
-microsocks -p $SOCKS_PORT > >(tee -a "$LOG_FILE") 2>&1 &
-MICROSOCKS_PID=$!
-
-cat <<EOC > "$PRIVOXY_CONFIG"
-listen-address  127.0.0.1:$PRIVOXY_PORT
-toggle 1
-enable-remote-toggle 0
-enable-remote-http-toggle 0
-enable-edit-actions 0
-forward-socks5t / 127.0.0.1:$SOCKS_PORT .
-EOC
-
-echo "$(tput setaf 2)✅ Starting privoxy on 127.0.0.1:$PRIVOXY_PORT...$(tput sgr0)"
-privoxy --no-daemon "$PRIVOXY_CONFIG" > >(tee -a "$LOG_FILE") 2>&1 &
-PRIVOXY_PID=$!
-
-# AVD selection
-echo ""
-echo "$(tput setaf 3)📱 Available AVDs:$(tput sgr0)"
-AVDS=($(emulator -list-avds))
-if [[ ${#AVDS[@]} -eq 0 ]]; then
-  echo "❌ No AVDs found. Skipping launch."
+# ✅ Make launcher script executable
+if [ -f "$LAUNCHER_SCRIPT" ]; then
+  chmod +x "$LAUNCHER_SCRIPT"
+  echo "${green}✅ Made $LAUNCHER_SCRIPT executable${reset}"
 else
-  for i in "${!AVDS[@]}"; do
-    echo "  [$((i+1))] ${AVDS[$i]}"
-  done
-  echo "  [0] None"
-  read -p "👉 Select an emulator to launch [0-${#AVDS[@]}]: " CHOICE
-  if [[ "$CHOICE" =~ ^[0-9]+$ ]] && (( CHOICE > 0 && CHOICE <= ${#AVDS[@]} )); then
-    EMU="${AVDS[$((CHOICE-1))]}"
-    echo "🚀 Launching AVD: $EMU"
-    nohup emulator -avd "$EMU" > /dev/null 2>&1 &
-  fi
+  echo "${red}❌ Launcher script not found at $LAUNCHER_SCRIPT${reset}"
+  exit 1
 fi
 
-while [ "$(adb shell getprop sys.boot_completed | tr -d '\r')" != "1" ] ; do sleep 1; done
-adb wait-for-device
-adb shell settings put global http_proxy 10.0.2.2:$PRIVOXY_PORT
-
-echo ""
-echo "$(tput setaf 2)🎉 Proxy is ready!$(tput sgr0)"
-echo "➡️ $(tput setaf 3)Set Android emulator Wi-Fi proxy to:$(tput sgr0)"
-echo "    Host: 10.0.2.2"
-echo "    Port: $PRIVOXY_PORT"
-echo "📄 Logging to: $LOG_FILE"
-echo "🛑 Press Ctrl+C to stop everything."
-
-trap "echo '🛑 Stopping proxies...'; kill $MICROSOCKS_PID $PRIVOXY_PID; exit 0" SIGINT
-
-wait
-EOL
-
-chmod +x "$INSTALLER_SCRIPT"
-echo "${green}✅ Launcher script created${reset}"
-
-# ✅ Add alias if not already present
-echo "${yellow}🔍 Checking for alias in ~/.zprofile...${reset}"
-if ! grep -Fxq "$ALIAS_LINE" "$HOME/.zprofile" 2>/dev/null; then
-  if [ -s "$HOME/.zprofile" ] && [ -n "$(tail -c1 "$HOME/.zprofile")" ]; then
-    echo >> "$HOME/.zprofile"
-  fi
-  echo "$ALIAS_LINE" >> "$HOME/.zprofile"
-  echo "${green}✅ Alias '$ALIAS_NAME' added to ~/.zprofile${reset}"
-else
-  echo "${yellow}ℹ️ Alias already present in ~/.zprofile${reset}"
+# ✅ Create symlink
+echo "${yellow}⚙️ Creating symlink at $SYMLINK_PATH...${reset}"
+if [ -L "$SYMLINK_PATH" ] || [ -e "$SYMLINK_PATH" ]; then
+  echo "${yellow}🧹 Removing existing file or symlink at $SYMLINK_PATH...${reset}"
+  rm "$SYMLINK_PATH" 2>/dev/null || sudo rm "$SYMLINK_PATH"
 fi
 
-# ✅ Source updated .zprofile
-echo "${yellow}📦 Sourcing ~/.zprofile to update shell environment...${reset}"
-source "$HOME/.zprofile"
+ln -s "$LAUNCHER_SCRIPT" "$SYMLINK_PATH" 2>/dev/null || sudo ln -s "$LAUNCHER_SCRIPT" "$SYMLINK_PATH"
+
+if [ -L "$SYMLINK_PATH" ]; then
+  echo "${green}✅ Symlink created successfully!${reset}"
+else
+  echo "${red}❌ Failed to create symlink at $SYMLINK_PATH.${reset}"
+  exit 1
+fi
+
+# Cleanup old alias from .zprofile if it exists
+ALIAS_NAME="androidproxy"
+if grep -q "alias $ALIAS_NAME=" "$HOME/.zprofile" 2>/dev/null; then
+  echo "${yellow}🧹 Removing old alias from ~/.zprofile...${reset}"
+  grep -v "alias $ALIAS_NAME=" "$HOME/.zprofile" > "$HOME/.zprofile.tmp" && mv "$HOME/.zprofile.tmp" "$HOME/.zprofile"
+  echo "${green}✅ Old alias removed from ~/.zprofile${reset}"
+fi
 
 echo ""
-echo "${green}✅ Installer complete. Run '${ALIAS_NAME}' to start the proxy anytime.${reset}"
+echo "${green}🎉 Installer complete. You can now run 'androidproxy' from anywhere to start the proxy.${reset}"
