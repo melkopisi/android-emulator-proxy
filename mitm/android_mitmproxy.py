@@ -11,6 +11,7 @@ from rich.console import Console
 from rich.panel import Panel
 from InquirerPy import inquirer
 from InquirerPy.base.control import Choice
+import threading
 
 # --- Monkey-patch InquirerPy to fix terminal resize layout artifacts ---
 try:
@@ -161,6 +162,7 @@ def main():
     
     parser = argparse.ArgumentParser(description="Android Emulator mitmproxy")
     parser.add_argument("-a", "--attach", action="store_true", help="Close the emulator when the proxy is stopped")
+    parser.add_argument("-s", "--skip", action="store_true", help="Skip emulator launch prompt and start proxy directly")
     parser.add_argument("--clear", action="store_true", help="Clear the proxy settings from a running emulator")
     parser.add_argument("-f", "--filters", nargs="*", default=[], help="Filters to apply in mitmproxy (e.g., example.com anotherdomain.com)")
     parser.add_argument("-w", "--web", action="store_true", help="Open mitmproxy in the web browser (mitmweb)")
@@ -194,59 +196,65 @@ def main():
                 console.print(f"[green]✅ Attaching to running device: {get_device_name(dev)}[/green]")
     
     if not ATTACHED_DEVICES:
-        console.print("")
-        console.print("[yellow]📱 Available AVDs to launch:[/yellow]")
-        avds_out = run_cmd("emulator -list-avds")
-        avds = [line.strip() for line in avds_out.splitlines() if line.strip()]
-        
-        if not avds:
-            console.print("[red]❌ No running devices and no AVDs found to launch. Exiting.[/red]")
-            sys.exit(1)
+        if args.skip:
+            console.print("[yellow]⏭️  Skipping emulator launch due to --skip flag. The proxy will auto-attach to any newly started emulators.[/yellow]")
+            selected_avds = ["SKIP"]
+        else:
+            console.print("")
+            console.print("[yellow]📱 Available AVDs to launch:[/yellow]")
+            avds_out = run_cmd("emulator -list-avds")
+            avds = [line.strip() for line in avds_out.splitlines() if line.strip()]
             
-        choices = [Choice(avd, name=avd) for avd in avds]
-        
-        selected_avds = inquirer.fuzzy(
-            message="👉 Select AVDs to launch (Tab to multi-select, Enter to confirm):",
-            choices=choices,
-            multiselect=True
-        ).execute()
-        
-        if not selected_avds:
-            sys.exit(0)
-            
-        old_devices = set(get_running_devices())
-        
-        for avd in selected_avds:
-            console.print(f"🚀 Launching AVD: {avd}")
-            proc = subprocess.Popen(
-                f"emulator -avd {avd} </dev/null > /dev/null 2>&1",
-                shell=True,
-                preexec_fn=os.setsid
-            )
-            LAUNCHED_EMULATOR_PIDS.append(proc.pid)
-        
-        console.print(f"[yellow]⏳ Waiting for {len(selected_avds)} emulator(s) to start...[/yellow]")
-        new_devices = []
-        expected_count = len(selected_avds)
-        
-        while len(new_devices) < expected_count:
-            time.sleep(2)
-            current_devices = set(get_running_devices())
-            diff = current_devices - old_devices - set(new_devices)
-            for d in diff:
-                new_devices.append(d)
-                console.print(f"[green]✅ Detected new device: {get_device_name(d)}[/green]")
+            choices = [Choice("SKIP", name="⏭️  Skip (I will start an emulator manually)")]
+            if avds:
+                choices.extend([Choice(avd, name=avd) for avd in avds])
                 
-        ATTACHED_DEVICES = new_devices
-        
-        console.print("[yellow]⏳ Waiting for boot to complete on all devices...[/yellow]")
-        for dev in new_devices:
-            while True:
-                boot_prop = run_cmd(f"adb -s {dev} shell getprop sys.boot_completed 2>/dev/null").strip()
-                if boot_prop == "1":
-                    break
-                time.sleep(1)
-            console.print(f"[green]✅ Boot completed for: {get_device_name(dev)}[/green]")
+            selected_avds = inquirer.fuzzy(
+                message="👉 Select AVDs to launch (Tab to multi-select, Enter to confirm):",
+                choices=choices,
+                multiselect=True
+            ).execute()
+            
+            if not selected_avds:
+                sys.exit(0)
+                
+        if "SKIP" in selected_avds:
+            if not args.skip:
+                console.print("[yellow]⏭️  Skipping emulator launch. The proxy will auto-attach to any newly started emulators.[/yellow]")
+        else:
+            old_devices = set(get_running_devices())
+            
+            for avd in selected_avds:
+                console.print(f"🚀 Launching AVD: {avd}")
+                proc = subprocess.Popen(
+                    f"emulator -avd {avd} </dev/null > /dev/null 2>&1",
+                    shell=True,
+                    preexec_fn=os.setsid
+                )
+                LAUNCHED_EMULATOR_PIDS.append(proc.pid)
+            
+            console.print(f"[yellow]⏳ Waiting for {len(selected_avds)} emulator(s) to start...[/yellow]")
+            new_devices = []
+            expected_count = len(selected_avds)
+            
+            while len(new_devices) < expected_count:
+                time.sleep(2)
+                current_devices = set(get_running_devices())
+                diff = current_devices - old_devices - set(new_devices)
+                for d in diff:
+                    new_devices.append(d)
+                    console.print(f"[green]✅ Detected new device: {get_device_name(d)}[/green]")
+                    
+            ATTACHED_DEVICES = new_devices
+            
+            console.print("[yellow]⏳ Waiting for boot to complete on all devices...[/yellow]")
+            for dev in new_devices:
+                while True:
+                    boot_prop = run_cmd(f"adb -s {dev} shell getprop sys.boot_completed 2>/dev/null").strip()
+                    if boot_prop == "1":
+                        break
+                    time.sleep(1)
+                console.print(f"[green]✅ Boot completed for: {get_device_name(dev)}[/green]")
 
     console.print(f"[yellow]🧹 Killing existing mitmproxy instances on port {MITMPROXY_PORT}...[/yellow]")
     run_cmd(f"pkill -f 'mitmproxy.*{MITMPROXY_PORT}'", capture=False)
@@ -282,6 +290,28 @@ def main():
         console.print("🛑 [bold red]Press 'q' then 'y' inside mitmproxy to stop and restore device settings.[/bold red]")
     time.sleep(2) # brief pause to read the message before mitmproxy takes over
     
+    def device_watcher_thread():
+        global ATTACHED_DEVICES
+        known_devices = set(ATTACHED_DEVICES)
+        while True:
+            time.sleep(3)
+            current_devices = set(get_running_devices())
+            new_devices = current_devices - known_devices
+            for dev in new_devices:
+                boot_prop = run_cmd(f"adb -s {dev} shell getprop sys.boot_completed 2>/dev/null").strip()
+                if boot_prop == "1":
+                    if args.web:
+                        console.print(f"\n[green]✅ Auto-attaching proxy to newly started device: {get_device_name(dev)}...[/green]")
+                    run_cmd(f"adb -s {dev} shell settings put global http_proxy 10.0.2.2:{MITMPROXY_PORT}")
+                    if dev not in ATTACHED_DEVICES:
+                        ATTACHED_DEVICES.append(dev)
+                    known_devices.add(dev)
+                    if args.web:
+                        console.print(f"[green]🎉 Proxy attached to {get_device_name(dev)}![/green]")
+                        
+    watcher = threading.Thread(target=device_watcher_thread, daemon=True)
+    watcher.start()
+
     try:
         subprocess.run(mitm_cmd)
     except Exception as e:
