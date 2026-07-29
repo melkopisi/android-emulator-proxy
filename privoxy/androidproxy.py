@@ -61,14 +61,16 @@ def run_cmd(cmd, capture=True):
     return ""
 
 def get_running_devices():
-    """Return a list of adb serial numbers for running devices."""
+    """Return a list of adb serial numbers for running emulators."""
     out = run_cmd("adb devices")
     devices = []
     for line in out.splitlines():
         if "device" in line and not line.startswith("List"):
             parts = line.split()
             if len(parts) >= 2 and parts[1] == "device":
-                devices.append(parts[0])
+                serial = parts[0]
+                if serial.startswith("emulator-"):
+                    devices.append(serial)
     return devices
 
 def get_device_name(serial):
