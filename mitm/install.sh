@@ -93,5 +93,11 @@ else
     echo "${green}ℹ️  $BIN_DIR is already in your PATH${reset}"
 fi
 
+# ✅ Ask which URL to health-check (Enter keeps the default)
+"$WRAPPER_SCRIPT" config check-url --ask
+
+# ✅ Optional menu bar status (SwiftBar)
+"$SCRIPT_DIR/../swiftbar/install.sh"
+
 echo ""
-echo "${green}🎉 Installer complete. You can now run 'androidmitm' from anywhere to start the proxy.${reset}"
+echo "${green}🎉 Installer complete. You can now run 'androidmitm' from anywhere to start the proxy (or 'up' to run it in the background).${reset}"
