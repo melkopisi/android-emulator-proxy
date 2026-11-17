@@ -47,6 +47,15 @@ androidmitm --web
 androidmitm -f example.com myapi.com
 ```
 
+Or run mitmweb in the background as a single instance (web UI at http://127.0.0.1:8081):
+
+```bash
+androidmitm up -f myapi.com
+androidmitm status    # restart / stop / logs
+```
+
+See [Single instance, health checks and auto-restart](../README.md#single-instance-health-checks-and-auto-restart) for the health checks, menu bar status and Android Studio setup. Restarting mitmweb clears the captured flows.
+
 ### Android Configuration Requirement
 
 To intercept HTTPS traffic on newer Android versions without rooting your emulator, your Android app must be configured to trust User certificates in debug mode.

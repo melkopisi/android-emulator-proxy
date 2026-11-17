@@ -84,6 +84,7 @@ androidproxy
 ### Additional Options:
 - **Attach Emulator Lifecycle**: `androidproxy --attach` (or `-a`) to kill the emulator when you exit the proxy.
 - **Clear Proxy Only**: `androidproxy --clear` to interactively select and clear proxy settings from running emulators without launching the proxy again.
+- **Background, single instance**: `androidproxy up` starts it in the background (or does nothing if it's already healthy). Then `androidproxy status`, `restart`, `stop`, `logs`. See [Single instance, health checks and auto-restart](../README.md#single-instance-health-checks-and-auto-restart) for health checks, the menu bar status and the Android Studio setup.
 ---
 
 ## 🛑 Stopping

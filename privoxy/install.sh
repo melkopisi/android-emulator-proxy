@@ -104,5 +104,11 @@ if grep -q "alias androidproxy=" "$HOME/.zprofile" 2>/dev/null; then
   grep -v "alias androidproxy=" "$HOME/.zprofile" > "$HOME/.zprofile.tmp" && mv "$HOME/.zprofile.tmp" "$HOME/.zprofile"
 fi
 
+# ✅ Ask which URL to health-check (Enter keeps the default)
+"$WRAPPER_SCRIPT" config check-url --ask
+
+# ✅ Optional menu bar status (SwiftBar)
+"$SCRIPT_DIR/../swiftbar/install.sh"
+
 echo ""
-echo "${green}🎉 Installer complete. You can now run 'androidproxy' from anywhere to start the proxy.${reset}"
+echo "${green}🎉 Installer complete. You can now run 'androidproxy' from anywhere to start the proxy (or 'up' to run it in the background).${reset}"
